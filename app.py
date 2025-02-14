@@ -64,14 +64,119 @@
 # if __name__ == "__main__":
 #     app.run(debug=True, threaded=True)
 
+# ----
+
+# import cv2
+# import numpy as np
+# from tensorflow.keras.models import load_model
+# from tensorflow.keras.preprocessing.image import img_to_array
+# from flask import Flask, render_template, Response, request, jsonify
+
+# # Load trained Keras model
+# model = load_model('food_recognition_model.keras')
+
+# # Define class labels
+# class_labels = {
+#     0: 'Bhaji Pav', 
+#     1: 'Dabeli', 
+#     2: 'DoubleCheesePizza',
+#     3: 'Paneer Tikka Sandwich',
+#     4: 'Samosa',
+#     5: 'Vada Pav',
+#     6: 'Wheat Sandwich',
+#     7: 'puff'
+# }
+
+# # Confidence threshold (adjust if needed)
+# CONFIDENCE_THRESHOLD = 0.8  # 80% confidence required for valid detection
+
+# app = Flask(__name__)
+
+# camera = None  # Initialize camera variable
+# is_streaming = False  # State variable to control streaming
+
+# # Load Haar Cascade for face detection
+# face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+
+# def process_frame():
+#     global camera
+#     while is_streaming:
+#         success, frame = camera.read()
+#         if not success:
+#             break
+
+#         # Convert frame to grayscale for face detection
+#         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+#         # Detect faces
+#         faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(50, 50))
+
+#         # Resize and preprocess frame for ML model
+#         img = cv2.resize(frame, (224, 224))
+#         img_array = img_to_array(img)
+#         img_array = np.expand_dims(img_array, axis=0) / 255.0  # Normalize
+
+#         # Predict food item
+#         predictions = model.predict(img_array)
+#         predicted_class_index = np.argmax(predictions[0])
+#         confidence = np.max(predictions[0])  # Get confidence score
+
+#         # Determine label
+#         if len(faces) > 0:  # If a face is detected, label as "Unknown"
+#             predicted_label = "Unknown"
+#         elif confidence < CONFIDENCE_THRESHOLD:  # If confidence is too low, label as "Unknown"
+#             predicted_label = "Unknown"
+#         else:
+#             predicted_label = class_labels.get(predicted_class_index, "Unknown")
+
+#         # Display detected food on frame
+#         cv2.rectangle(frame, (10, 10), (250, 60), (0, 0, 255) if predicted_label == "Unknown" else (0, 255, 0), -1)  # Red for unknown, Green for detected
+#         cv2.putText(frame, predicted_label, (20, 45), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
+#         # Encode frame for streaming
+#         _, buffer = cv2.imencode('.jpg', frame)
+#         frame_bytes = buffer.tobytes()
+
+#         yield (b'--frame\r\n'
+#                b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+
+# @app.route('/')
+# def index():
+#     return render_template('index.html')
+
+# @app.route('/start', methods=['POST'])
+# def start_camera():
+#     global camera, is_streaming
+#     if not is_streaming:
+#         camera = cv2.VideoCapture(0)
+#         is_streaming = True
+#     return jsonify({'status': 'started'})
+
+# @app.route('/stop', methods=['POST'])
+# def stop_camera():
+#     global camera, is_streaming
+#     if is_streaming:
+#         is_streaming = False
+#         camera.release()
+#         camera = None
+#     return jsonify({'status': 'stopped'})
+
+# @app.route('/video_feed')
+# def video_feed():
+#     return Response(process_frame(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+# if __name__ == "__main__":
+#     app.run(debug=True, threaded=True)
 
 import cv2
 import numpy as np
+import base64
+import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
-from flask import Flask, render_template, Response, request, jsonify
+from flask import Flask, render_template, request, jsonify
 
-# Load trained Keras model
+# Load trained model
 model = load_model('food_recognition_model.keras')
 
 # Define class labels
@@ -86,83 +191,44 @@ class_labels = {
     7: 'puff'
 }
 
-# Confidence threshold (adjust if needed)
-CONFIDENCE_THRESHOLD = 0.8  # 80% confidence required for valid detection
+# Confidence threshold
+CONFIDENCE_THRESHOLD = 0.8
 
 app = Flask(__name__)
-
-camera = None  # Initialize camera variable
-is_streaming = False  # State variable to control streaming
-
-# Load Haar Cascade for face detection
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-
-def process_frame():
-    global camera
-    while is_streaming:
-        success, frame = camera.read()
-        if not success:
-            break
-
-        # Convert frame to grayscale for face detection
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        # Detect faces
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(50, 50))
-
-        # Resize and preprocess frame for ML model
-        img = cv2.resize(frame, (224, 224))
-        img_array = img_to_array(img)
-        img_array = np.expand_dims(img_array, axis=0) / 255.0  # Normalize
-
-        # Predict food item
-        predictions = model.predict(img_array)
-        predicted_class_index = np.argmax(predictions[0])
-        confidence = np.max(predictions[0])  # Get confidence score
-
-        # Determine label
-        if len(faces) > 0:  # If a face is detected, label as "Unknown"
-            predicted_label = "Unknown"
-        elif confidence < CONFIDENCE_THRESHOLD:  # If confidence is too low, label as "Unknown"
-            predicted_label = "Unknown"
-        else:
-            predicted_label = class_labels.get(predicted_class_index, "Unknown")
-
-        # Display detected food on frame
-        cv2.rectangle(frame, (10, 10), (250, 60), (0, 0, 255) if predicted_label == "Unknown" else (0, 255, 0), -1)  # Red for unknown, Green for detected
-        cv2.putText(frame, predicted_label, (20, 45), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-
-        # Encode frame for streaming
-        _, buffer = cv2.imencode('.jpg', frame)
-        frame_bytes = buffer.tobytes()
-
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-@app.route('/start', methods=['POST'])
-def start_camera():
-    global camera, is_streaming
-    if not is_streaming:
-        camera = cv2.VideoCapture(0)
-        is_streaming = True
-    return jsonify({'status': 'started'})
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        data = request.json
+        image_data = data["image"].split(",")[1]  # Extract base64 part
 
-@app.route('/stop', methods=['POST'])
-def stop_camera():
-    global camera, is_streaming
-    if is_streaming:
-        is_streaming = False
-        camera.release()
-        camera = None
-    return jsonify({'status': 'stopped'})
+        # Decode Base64 to numpy array
+        image_bytes = base64.b64decode(image_data)
+        np_arr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-@app.route('/video_feed')
-def video_feed():
-    return Response(process_frame(), mimetype='multipart/x-mixed-replace; boundary=frame')
+        # Resize and preprocess image
+        img = cv2.resize(img, (224, 224))
+        img_array = img_to_array(img)
+        img_array = np.expand_dims(img_array, axis=0) / 255.0
+
+        # Predict food item
+        predictions = model.predict(img_array)
+        predicted_class_index = np.argmax(predictions[0])
+        confidence = np.max(predictions[0])
+
+        # Determine label
+        predicted_label = class_labels.get(predicted_class_index, "Unknown") if confidence >= CONFIDENCE_THRESHOLD else "Unknown"
+
+        return jsonify({"label": predicted_label, "confidence": float(confidence)})
+
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 if __name__ == "__main__":
-    app.run(debug=True, threaded=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)
+

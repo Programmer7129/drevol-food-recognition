@@ -1,21 +1,3 @@
-<!-- <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Food Recognition Web App</title>
-    <style>
-        body { text-align: center; font-family: Arial, sans-serif; }
-        h1 { color: #333; }
-        img { border: 2px solid black; border-radius: 10px; }
-    </style>
-</head>
-<body>
-    <h1>Live Food Recognition</h1>
-    <img src="{{ url_for('video_feed') }}" width="640" height="480">
-</body>
-</html> -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -31,16 +13,12 @@
         h1 {
             color: #333;
         }
-        #video-container {
-            display: none;
-            margin-top: 20px;
-        }
-        img {
+        video, canvas {
             width: 640px;
             height: 480px;
             border-radius: 10px;
             border: 3px solid black;
-            display: block;
+            display: none;  /* Initially hidden */
             margin: auto;
         }
         .btn-container {
@@ -63,6 +41,16 @@
             background-color: #aaa;
             cursor: not-allowed;
         }
+        #prediction-box {
+            margin-top: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            background-color: yellow;
+            display: none;
+            padding: 10px;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
@@ -73,41 +61,74 @@
         <button id="stop-btn" class="btn-stop" disabled>Stop Camera</button>
     </div>
 
-    <div id="video-container">
-        <img id="video-feed" src="" alt="Live Feed">
-    </div>
+    <video id="video" autoplay></video>
+    <canvas id="canvas"></canvas>
+
+    <div id="prediction-box">Detecting...</div>
 
     <script>
-        const startBtn = document.getElementById("start-btn");
-        const stopBtn = document.getElementById("stop-btn");
-        const videoContainer = document.getElementById("video-container");
-        const videoFeed = document.getElementById("video-feed");
+        let video = document.getElementById("video");
+        let canvas = document.getElementById("canvas");
+        let startBtn = document.getElementById("start-btn");
+        let stopBtn = document.getElementById("stop-btn");
+        let predictionBox = document.getElementById("prediction-box");
+        let stream = null;
+        let intervalId = null;
 
-        startBtn.addEventListener("click", () => {
-            fetch("/start", { method: "POST" })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === "started") {
-                        videoFeed.src = "/video_feed";
-                        videoContainer.style.display = "block";
-                        startBtn.disabled = true;
-                        stopBtn.disabled = false;
-                    }
-                });
+        startBtn.addEventListener("click", async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                video.style.display = "block";  // Show video only when started
+                predictionBox.style.display = "block";
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+
+                // Send frames to the backend every 1 second
+                intervalId = setInterval(() => {
+                    sendFrame();
+                }, 1000);
+            } catch (err) {
+                alert("Camera access denied or not supported.");
+            }
         });
 
         stopBtn.addEventListener("click", () => {
-            fetch("/stop", { method: "POST" })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === "stopped") {
-                        videoFeed.src = "";
-                        videoContainer.style.display = "none";
-                        startBtn.disabled = false;
-                        stopBtn.disabled = true;
-                    }
-                });
+            if (stream) {
+                let tracks = stream.getTracks();
+                tracks.forEach(track => track.stop());
+                video.srcObject = null;
+                video.style.display = "none";  // Hide video when stopped
+                predictionBox.style.display = "none";
+                clearInterval(intervalId);  // Stop sending frames
+                intervalId = null;
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
         });
+
+        function sendFrame() {
+            if (!intervalId) return;  // Stop sending frames if interval is cleared
+
+            let context = canvas.getContext("2d");
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            let frameData = canvas.toDataURL("image/jpeg"); // Convert frame to Base64
+
+            fetch("/predict", {
+                method: "POST",
+                body: JSON.stringify({ image: frameData }),
+                headers: { "Content-Type": "application/json" }
+            })
+            .then(response => response.json())
+            .then(data => {
+                predictionBox.innerText = `Prediction: ${data.label}`;
+                predictionBox.style.backgroundColor = data.label === "Unknown" ? "red" : "green";
+            })
+            .catch(err => console.error("Error sending frame:", err));
+        }
     </script>
 </body>
 </html>
