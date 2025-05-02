@@ -2,15 +2,6 @@
 
 A real-time food item recognition system powered by a custom-trained Keras model and a simple Flask web app.
 
-## 📁 Repository Structure
-├── app.py
-├── food_recognition_model.keras # Trained Keras model file
-├── food_classification_model.ipynb # Jupyter notebook for model training & evaluation
-├── requirements.txt # Python dependencies
-└── templates/
-└── index.html # Web UI template
-
-
 ## 🚀 Getting Started
 
 ### 1. Clone the repository
