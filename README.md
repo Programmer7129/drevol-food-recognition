@@ -4,9 +4,11 @@ A real-time food item recognition system powered by a custom-trained Keras model
 
 ## 🚀 Getting Started
 
-### 1. Clone the repository
+### 1. Fork and Clone this repository  
+Click the “Fork” button in the top-right corner to create your own copy under your GitHub account.
+
 ```bash
-git clone https://github.com/your-username/food-recognition.git
+git clone https://github.com/<your-username>/drevol-food-recognition.git
 cd food-recognition
 ```
 
